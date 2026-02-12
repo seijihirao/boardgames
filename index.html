@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="/boardgames/">
+    <link rel="icon" type="image/png" href="/assets/icons/logo.png">
+    <title>Boardgames</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        .game-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .game-card:active {
+            transform: scale(0.98);
+        }
+        @media (hover: hover) {
+            .game-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.3);
+            }
+        }
+        .skeleton-card {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-base-300 min-h-screen" x-data="gameLibrary">
+    <!-- Navbar -->
+    <nav class="navbar bg-base-100 shadow-lg sticky top-0 z-50">
+        <div class="flex-1">
+            <a class="btn btn-ghost text-xl">
+                <i class="ri-gamepad-line mr-2"></i>
+                Boardgames
+            </a>
+        </div>
+        <div class="flex-none gap-2">
+            <!-- Search -->
+            <div class="form-control hidden sm:block" x-show="user">
+                <input type="text" placeholder="Buscar..." class="input input-bordered w-24 md:w-auto"
+                       x-model="searchQuery" @input="filterGames()">
+            </div>
+            <!-- User Menu -->
+            <template x-if="user">
+                <div class="dropdown dropdown-end">
+                    <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar placeholder">
+                        <div class="w-10 rounded-full bg-primary text-primary-content" x-show="!user.picture">
+                            <span x-text="user.name?.charAt(0)?.toUpperCase() || '?'"></span>
+                        </div>
+                        <div class="w-10 rounded-full" x-show="user.picture">
+                            <img :src="user.picture" :alt="user.name" referrerpolicy="no-referrer">
+                        </div>
+                    </div>
+                    <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+                        <li class="menu-title"><span x-text="user.name"></span></li>
+                        <li><a @click="signOut()"><i class="ri-logout-box-line"></i> Sair</a></li>
+                    </ul>
+                </div>
+            </template>
+            <template x-if="!user && !error">
+                <button class="btn btn-primary" @click="signIn()" :disabled="!firebaseReady || !firebaseReady">
+                    <i class="ri-google-fill mr-2"></i> Entrar
+                </button>
+            </template>
+        </div>
+    </nav>
+
+    <!-- Mobile Search -->
+    <div class="p-4 sm:hidden" x-show="user">
+        <input type="text" placeholder="Buscar jogos..." class="input input-bordered w-full"
+               x-model="searchQuery" @input="filterGames()">
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-2 m-4" x-show="user">
+        <div class="tabs tabs-boxed bg-base-100 overflow-x-auto max-w-full">
+            <a class="tab tab-sm sm:tab-md whitespace-nowrap" :class="{ 'tab-active': filter === 'all' }" @click="setFilter('all')">
+                <i class="ri-apps-line sm:mr-1"></i><span class="hidden sm:inline"> Todos</span>
+            </a>
+            <a class="tab tab-sm sm:tab-md whitespace-nowrap" :class="{ 'tab-active': filter === 'available' }" @click="setFilter('available')">
+                <i class="ri-checkbox-circle-line sm:mr-1"></i><span class="hidden sm:inline"> Disponíveis</span>
+            </a>
+            <a class="tab tab-sm sm:tab-md whitespace-nowrap" :class="{ 'tab-active': filter === 'mine' }" @click="setFilter('mine')">
+                <i class="ri-user-line sm:mr-1"></i><span class="hidden sm:inline"> Comigo</span>
+            </a>
+            <a class="tab tab-sm sm:tab-md whitespace-nowrap" :class="{ 'tab-active': filter === 'borrowed' }" @click="setFilter('borrowed')">
+                <i class="ri-time-line sm:mr-1"></i><span class="hidden sm:inline"> Emprestados</span>
+            </a>
+        </div>
+        <button class="btn btn-sm" :class="{ 'btn-primary': showFilters || hasActiveFilters }" @click="showFilters = !showFilters">
+            <i class="ri-filter-3-line"></i>
+            <span class="hidden sm:inline">Filtros</span>
+            <span class="badge badge-sm" x-show="hasActiveFilters" x-text="[filters.players, filters.maxTime, filters.minAge, filters.maxComplexity, filters.isParty, filters.isCoop].filter(Boolean).length"></span>
+        </button>
+    </div>
+
+    <!-- Advanced Filters Panel -->
+    <div class="mx-4 mb-4 p-3 sm:p-4 bg-base-100 rounded-box shadow" x-show="user && showFilters" x-transition x-cloak>
+        <div class="flex flex-wrap gap-2 sm:gap-3 items-end">
+            <!-- Players -->
+            <div class="form-control w-20 sm:w-24">
+                <label class="label py-1">
+                    <span class="label-text text-xs"><i class="ri-group-line mr-1"></i>Jogadores</span>
+                </label>
+                <input type="number" min="1" max="20" placeholder="Qtd" class="input input-bordered input-sm"
+                       x-model="filters.players" @input="filterGames()">
+            </div>
+
+            <!-- Max Time -->
+            <div class="form-control w-24 sm:w-28">
+                <label class="label py-1">
+                    <span class="label-text text-xs"><i class="ri-time-line mr-1"></i>Tempo</span>
+                </label>
+                <select class="select select-bordered select-sm" x-model="filters.maxTime" @change="filterGames()">
+                    <option value="">Todos</option>
+                    <option value="30">30 min</option>
+                    <option value="60">1h</option>
+                    <option value="90">1h30</option>
+                    <option value="120">2h</option>
+                    <option value="180">3h</option>
+                </select>
+            </div>
+
+            <!-- Min Age -->
+            <div class="form-control w-20 sm:w-24">
+                <label class="label py-1">
+                    <span class="label-text text-xs"><i class="ri-user-line mr-1"></i>Idade</span>
+                </label>
+                <select class="select select-bordered select-sm" x-model="filters.minAge" @change="filterGames()">
+                    <option value="">Todos</option>
+                    <option value="6">6+</option>
+                    <option value="8">8+</option>
+                    <option value="10">10+</option>
+                    <option value="12">12+</option>
+                    <option value="14">14+</option>
+                </select>
+            </div>
+
+            <!-- Max Complexity -->
+            <div class="form-control w-28 sm:w-32">
+                <label class="label py-1">
+                    <span class="label-text text-xs"><i class="ri-bar-chart-line mr-1"></i>Dificuldade</span>
+                </label>
+                <select class="select select-bordered select-sm" x-model="filters.maxComplexity" @change="filterGames()">
+                    <option value="">Todos</option>
+                    <option value="Muito Fácil">Muito Fácil</option>
+                    <option value="Fácil">Fácil</option>
+                    <option value="Médio">Médio</option>
+                    <option value="Difícil">Difícil</option>
+                    <option value="Muito Difícil">Muito Difícil</option>
+                </select>
+            </div>
+
+            <!-- Party & Coop toggles -->
+            <div class="flex gap-2 items-center py-1">
+                <label class="label cursor-pointer gap-1 p-0">
+                    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary" x-model="filters.isParty" @change="filterGames()">
+                    <span class="label-text text-xs">Party</span>
+                </label>
+                <label class="label cursor-pointer gap-1 p-0">
+                    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary" x-model="filters.isCoop" @change="filterGames()">
+                    <span class="label-text text-xs">Co-op</span>
+                </label>
+            </div>
+
+            <!-- Sort -->
+            <div class="form-control w-28 sm:w-32">
+                <label class="label py-1">
+                    <span class="label-text text-xs"><i class="ri-sort-asc mr-1"></i>Ordenar</span>
+                </label>
+                <select class="select select-bordered select-sm" x-model="sortBy" @change="filterGames()">
+                    <option value="name">Nome</option>
+                    <option value="rating">Nota</option>
+                    <option value="rank">Rank</option>
+                    <option value="players">Jogadores</option>
+                    <option value="time">Tempo</option>
+                </select>
+            </div>
+
+            <!-- Clear filters -->
+            <button class="btn btn-ghost btn-sm" @click="clearFilters()" x-show="hasActiveFilters">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 pb-8">
+        <!-- Not logged in -->
+        <template x-if="!user && !error">
+            <div class="hero min-h-[60vh]">
+                <div class="hero-content text-center">
+                    <div class="max-w-md">
+                        <i class="ri-gamepad-line text-8xl text-primary mb-4"></i>
+                        <h1 class="text-4xl font-bold">Boardgames</h1>
+                        <p class="py-6">Faça login com sua conta Google para ver e emprestar boardgames da nossa biblioteca compartilhada.</p>
+                        <button class="btn btn-primary btn-lg" @click="signIn()" :disabled="!firebaseReady || !firebaseReady">
+                            <i class="ri-google-fill mr-2"></i> Entrar com Google
+                        </button>
+                        <p class="text-sm text-base-content/60 mt-4" x-show="!firebaseReady || !firebaseReady">
+                            <i class="ri-loader-4-line animate-spin"></i> Carregando...
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Configuration Error -->
+        <template x-if="!user && error">
+            <div class="hero min-h-[60vh]">
+                <div class="hero-content text-center">
+                    <div class="max-w-md">
+                        <i class="ri-settings-3-line text-8xl text-error mb-4"></i>
+                        <h1 class="text-4xl font-bold">Configuração Necessária</h1>
+                        <p class="py-6 text-base-content/80" x-text="error"></p>
+                        <div class="mockup-code text-left text-sm">
+                            <pre data-prefix="1"><code>// Edite scripts/alpine-components.js</code></pre>
+                            <pre data-prefix="2"><code>const CLIENT_ID = 'seu-client-id.apps.googleusercontent.com';</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Loading -->
+        <template x-if="user && loading">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <template x-for="i in 8">
+                    <div class="card bg-base-100 shadow-xl skeleton-card">
+                        <div class="card-body">
+                            <div class="h-6 bg-base-300 rounded w-3/4"></div>
+                            <div class="h-4 bg-base-300 rounded w-1/2 mt-2"></div>
+                            <div class="h-10 bg-base-300 rounded w-full mt-4"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Error -->
+        <template x-if="user && error">
+            <div class="alert alert-error">
+                <i class="ri-error-warning-line text-xl"></i>
+                <div>
+                    <h3 class="font-bold">Erro ao carregar jogos</h3>
+                    <p x-text="error"></p>
+                </div>
+                <button class="btn btn-sm" @click="loadGames()">Tentar novamente</button>
+            </div>
+        </template>
+
+        <!-- No access -->
+        <template x-if="user && noAccess">
+            <div class="hero min-h-[40vh]">
+                <div class="hero-content text-center">
+                    <div class="max-w-md">
+                        <i class="ri-lock-line text-6xl text-warning mb-4"></i>
+                        <h2 class="text-2xl font-bold">Acesso Restrito</h2>
+                        <p class="py-4">Você não tem permissão para acessar esta planilha. Entre em contato com o administrador para solicitar acesso.</p>
+                        <button class="btn btn-outline" @click="signOut()">Sair</button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Games List -->
+        <template x-if="user && !loading && !error && !noAccess">
+            <div>
+                <!-- Stats -->
+                <div class="stats stats-vertical sm:stats-horizontal shadow w-full mb-4 bg-base-100">
+                    <div class="stat">
+                        <div class="stat-figure text-primary">
+                            <i class="ri-gamepad-line text-3xl"></i>
+                        </div>
+                        <div class="stat-title">Total</div>
+                        <div class="stat-value text-primary" x-text="games.length"></div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-figure text-success">
+                            <i class="ri-checkbox-circle-line text-3xl"></i>
+                        </div>
+                        <div class="stat-title">Disponíveis</div>
+                        <div class="stat-value text-success" x-text="games.filter(g => !g.borrowedBy).length"></div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-figure text-info">
+                            <i class="ri-user-line text-3xl"></i>
+                        </div>
+                        <div class="stat-title">Comigo</div>
+                        <div class="stat-value text-info" x-text="games.filter(g => g.borrowedBy === user?.email).length"></div>
+                    </div>
+                </div>
+
+                <!-- Empty state -->
+                <div class="text-center py-12" x-show="filteredGames.length === 0">
+                    <i class="ri-search-line text-6xl text-base-content/30"></i>
+                    <p class="text-base-content/60 mt-4">Nenhum jogo encontrado</p>
+                </div>
+
+                <!-- Games Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <template x-for="game in filteredGames" :key="game.id">
+                        <div class="card bg-base-100 shadow-xl game-card">
+                            <!-- Game Image -->
+                            <figure class="relative h-40 bg-base-200" x-show="game.image">
+                                <img :src="game.image" :alt="game.name" class="w-full h-full object-contain">
+                                <div class="absolute top-2 right-2">
+                                    <template x-if="game.borrowedBy">
+                                        <div class="badge badge-warning gap-1">
+                                            <i class="ri-time-line"></i>
+                                            <span x-show="game.borrowedBy === user?.email">Comigo</span>
+                                            <span x-show="game.borrowedBy !== user?.email">Emprestado</span>
+                                        </div>
+                                    </template>
+                                    <template x-if="!game.borrowedBy">
+                                        <div class="badge badge-success gap-1">
+                                            <i class="ri-checkbox-circle-line"></i> Disponível
+                                        </div>
+                                    </template>
+                                </div>
+                            </figure>
+                            <div class="card-body p-4">
+                                <!-- Header with name and status (show badge here only if no image) -->
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex-1">
+                                        <h2 class="card-title text-lg leading-tight" x-text="game.name"></h2>
+                                        <div class="flex items-center gap-1 mt-1" x-show="game.rating">
+                                            <i class="ri-star-fill text-warning text-sm"></i>
+                                            <span class="text-sm font-medium" x-text="game.rating"></span>
+                                            <span class="text-xs text-base-content/50" x-show="game.rank">(#<span x-text="game.rank"></span>)</span>
+                                        </div>
+                                    </div>
+                                    <template x-if="!game.image && game.borrowedBy">
+                                        <div class="badge badge-warning gap-1 shrink-0">
+                                            <i class="ri-time-line"></i>
+                                            <span x-show="game.borrowedBy === user?.email">Comigo</span>
+                                            <span x-show="game.borrowedBy !== user?.email">Emprestado</span>
+                                        </div>
+                                    </template>
+                                    <template x-if="!game.image && !game.borrowedBy">
+                                        <div class="badge badge-success gap-1 shrink-0">
+                                            <i class="ri-checkbox-circle-line"></i> Disponível
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- Game details -->
+                                <div class="flex flex-wrap gap-2 mt-2 text-xs">
+                                    <div class="flex items-center gap-1 bg-base-200 rounded-full px-2 py-1" x-show="game.playersMin || game.playersMax">
+                                        <i class="ri-group-line"></i>
+                                        <span x-text="game.playersMin === game.playersMax ? game.playersMin : `${game.playersMin}-${game.playersMax}`"></span>
+                                    </div>
+                                    <div class="flex items-center gap-1 bg-base-200 rounded-full px-2 py-1" x-show="game.time">
+                                        <i class="ri-time-line"></i>
+                                        <span x-text="game.time + ' min'"></span>
+                                    </div>
+                                    <div class="flex items-center gap-1 bg-base-200 rounded-full px-2 py-1" x-show="game.age">
+                                        <i class="ri-user-line"></i>
+                                        <span x-text="game.age + '+'"></span>
+                                    </div>
+                                    <div class="flex items-center gap-1 bg-base-200 rounded-full px-2 py-1" x-show="game.complexity">
+                                        <i class="ri-bar-chart-line"></i>
+                                        <span x-text="game.complexity"></span>
+                                    </div>
+                                    <div class="badge badge-primary badge-sm" x-show="game.coop && game.coop.toLowerCase() !== 'não'">Co-op</div>
+                                    <div class="badge badge-secondary badge-sm" x-show="game.party && game.party.toLowerCase() !== 'não'">Party</div>
+                                </div>
+
+                                <!-- Borrowed by info -->
+                                <p class="text-sm mt-2" x-show="game.borrowedBy"
+                                   :class="game.borrowedBy === user?.email ? 'text-info' : 'text-base-content/60'">
+                                    <i class="ri-user-received-line mr-1"></i>
+                                    <span x-text="game.borrowedBy === user?.email ? 'Comigo' : (game.borrowedByName || game.borrowedBy)"></span>
+                                </p>
+
+                                <!-- Actions -->
+                                <div class="card-actions justify-between items-center mt-3 pt-3 border-t border-base-200">
+                                    <!-- Link to BGG -->
+                                    <a :href="game.link" target="_blank" class="btn btn-ghost btn-xs" x-show="game.link">
+                                        <i class="ri-external-link-line"></i> BGG
+                                    </a>
+                                    <div x-show="!game.link"></div>
+
+                                    <!-- Borrow button -->
+                                    <template x-if="!game.borrowedBy">
+                                        <button class="btn btn-primary btn-sm"
+                                                @click="borrowGame(game)"
+                                                :disabled="game.processing">
+                                            <template x-if="game.processing">
+                                                <i class="ri-loader-4-line animate-spin"></i>
+                                            </template>
+                                            <template x-if="!game.processing">
+                                                <span><i class="ri-hand-heart-line mr-1"></i> Pegar</span>
+                                            </template>
+                                        </button>
+                                    </template>
+
+                                    <!-- Return button (for current user) -->
+                                    <template x-if="game.borrowedBy === user?.email">
+                                        <button class="btn btn-secondary btn-sm"
+                                                @click="returnGame(game)"
+                                                :disabled="game.processing">
+                                            <template x-if="game.processing">
+                                                <i class="ri-loader-4-line animate-spin"></i>
+                                            </template>
+                                            <template x-if="!game.processing">
+                                                <span><i class="ri-arrow-go-back-line mr-1"></i> Devolver</span>
+                                            </template>
+                                        </button>
+                                    </template>
+
+                                    <!-- Info for borrowed by others -->
+                                    <template x-if="game.borrowedBy && game.borrowedBy !== user?.email">
+                                        <button class="btn btn-ghost btn-sm" disabled>
+                                            <i class="ri-lock-line mr-1"></i> Indisponível
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </main>
+
+    <!-- Floating Add Button -->
+    <button class="btn btn-primary btn-circle btn-lg fixed bottom-6 right-6 shadow-lg z-40"
+            @click="showAddGameModal = true"
+            x-show="canEdit && user"
+            x-cloak>
+        <i class="ri-add-line text-2xl"></i>
+    </button>
+
+    <!-- Toast notifications -->
+    <div class="toast toast-end" x-cloak x-show="toast?.show" x-transition>
+        <div class="alert" :class="toast?.type === 'success' ? 'alert-success' : 'alert-error'">
+            <span x-text="toast?.message"></span>
+        </div>
+    </div>
+
+    <!-- Add Game Modal -->
+    <dialog class="modal" :class="{ 'modal-open': showAddGameModal }" x-cloak>
+        <div class="modal-box max-w-2xl">
+            <h3 class="font-bold text-lg mb-4">
+                <i class="ri-add-line mr-2"></i>Adicionar Jogo da Ludopedia
+            </h3>
+
+            <!-- URL Input -->
+            <div class="form-control" x-show="!newGame.name">
+                <label class="label">
+                    <span class="label-text">Cole o link do jogo na Ludopedia</span>
+                </label>
+                <div class="flex gap-2">
+                    <input type="text" placeholder="https://ludopedia.com.br/jogo/nome-do-jogo"
+                           class="input input-bordered flex-1"
+                           x-model="ludopediaUrl"
+                           @keyup.enter="fetchLudopediaGame()">
+                    <button class="btn btn-primary" @click="fetchLudopediaGame()" :disabled="fetchingGame || !ludopediaUrl">
+                        <template x-if="fetchingGame">
+                            <i class="ri-loader-4-line animate-spin"></i>
+                        </template>
+                        <template x-if="!fetchingGame">
+                            <span><i class="ri-search-line"></i> Buscar</span>
+                        </template>
+                    </button>
+                </div>
+                <label class="label">
+                    <span class="label-text-alt text-base-content/60">Exemplo: https://ludopedia.com.br/jogo/that-s-not-a-hat</span>
+                </label>
+            </div>
+
+            <!-- Game Preview -->
+            <div x-show="newGame.name" class="space-y-4">
+                <div class="flex gap-4">
+                    <!-- Game Image -->
+                    <div class="w-32 h-40 bg-base-200 rounded-lg overflow-hidden shrink-0" x-show="newGame.image">
+                        <img :src="newGame.image" :alt="newGame.name" class="w-full h-full object-contain">
+                    </div>
+
+                    <!-- Game Info -->
+                    <div class="flex-1 space-y-2">
+                        <h4 class="text-xl font-bold" x-text="newGame.name"></h4>
+                        <div class="flex flex-wrap gap-2 text-sm">
+                            <div class="badge badge-outline" x-show="newGame.playersMin">
+                                <i class="ri-group-line mr-1"></i>
+                                <span x-text="newGame.playersMin === newGame.playersMax ? newGame.playersMin : `${newGame.playersMin}-${newGame.playersMax}`"></span>
+                            </div>
+                            <div class="badge badge-outline" x-show="newGame.time">
+                                <i class="ri-time-line mr-1"></i>
+                                <span x-text="newGame.time + ' min'"></span>
+                            </div>
+                            <div class="badge badge-outline" x-show="newGame.age">
+                                <i class="ri-user-line mr-1"></i>
+                                <span x-text="newGame.age + '+'"></span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2" x-show="newGame.rating">
+                            <i class="ri-star-fill text-warning"></i>
+                            <span x-text="newGame.rating"></span>
+                            <span class="text-sm text-base-content/50" x-show="newGame.rank">(Rank #<span x-text="newGame.rank"></span>)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Editable Fields -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div class="form-control">
+                        <label class="label py-1"><span class="label-text text-xs">Complexidade</span></label>
+                        <select class="select select-bordered select-sm" x-model="newGame.complexity">
+                            <option value="">Não definido</option>
+                            <option value="Muito Fácil">Muito Fácil</option>
+                            <option value="Fácil">Fácil</option>
+                            <option value="Médio">Médio</option>
+                            <option value="Difícil">Difícil</option>
+                            <option value="Muito Difícil">Muito Difícil</option>
+                        </select>
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-1"><span class="label-text text-xs">Cooperativo</span></label>
+                        <select class="select select-bordered select-sm" x-model="newGame.coop">
+                            <option value="Não">Não</option>
+                            <option value="Sim">Sim</option>
+                        </select>
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-1"><span class="label-text text-xs">Party Game</span></label>
+                        <select class="select select-bordered select-sm" x-model="newGame.party">
+                            <option value="Não">Não</option>
+                            <option value="Sim">Sim</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn btn-outline btn-sm" @click="resetNewGame()">
+                    <i class="ri-arrow-left-line"></i> Buscar outro
+                </button>
+            </div>
+
+            <!-- Error message -->
+            <div class="alert alert-error mt-4" x-show="addGameError">
+                <i class="ri-error-warning-line"></i>
+                <span x-text="addGameError"></span>
+            </div>
+
+            <!-- Actions -->
+            <div class="modal-action">
+                <button class="btn btn-ghost" @click="closeAddGameModal()">Cancelar</button>
+                <button class="btn btn-primary" @click="addGameToSheet()"
+                        :disabled="!newGame.name || addingGame" x-show="newGame.name">
+                    <template x-if="addingGame">
+                        <i class="ri-loader-4-line animate-spin"></i>
+                    </template>
+                    <template x-if="!addingGame">
+                        <span><i class="ri-add-line mr-1"></i> Adicionar</span>
+                    </template>
+                </button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button @click="closeAddGameModal()">close</button>
+        </form>
+    </dialog>
+
+    <script type="module" src="scripts/alpine-components.js"></script>
+</body>
+</html>

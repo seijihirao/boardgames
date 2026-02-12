@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migrar Jogos para Firestore</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-base-300 min-h-screen p-8" data-theme="dark">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">Migrar Jogos do Google Sheets para Firestore</h1>
+
+        <div class="card bg-base-100 shadow-xl mb-6">
+            <div class="card-body">
+                <h2 class="card-title">Passo 1: Login</h2>
+                <p id="user-status" class="text-base-content/60">Não logado</p>
+                <button id="login-btn" class="btn btn-primary w-fit">Login com Google</button>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow-xl mb-6">
+            <div class="card-body">
+                <h2 class="card-title">Passo 2: Exportar dados do Google Sheets</h2>
+                <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+                    <li>Abra sua planilha no Google Sheets</li>
+                    <li>Vá em <strong>Arquivo → Fazer download → CSV</strong></li>
+                    <li>Abra o arquivo CSV e copie todo o conteúdo</li>
+                    <li>Cole no campo abaixo</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow-xl mb-6">
+            <div class="card-body">
+                <h2 class="card-title">Passo 3: Colar dados CSV</h2>
+                <textarea id="csv-input" class="textarea textarea-bordered w-full h-64 font-mono text-sm"
+                    placeholder="Cole o conteúdo do CSV aqui..."></textarea>
+                <button id="preview-btn" class="btn btn-secondary w-fit mt-2">Visualizar dados</button>
+            </div>
+        </div>
+
+        <div id="preview-section" class="card bg-base-100 shadow-xl mb-6 hidden">
+            <div class="card-body">
+                <h2 class="card-title">Passo 4: Verificar e Migrar</h2>
+                <p id="preview-count" class="text-success"></p>
+                <div class="overflow-x-auto max-h-64">
+                    <table class="table table-xs">
+                        <thead>
+                            <tr id="preview-header"></tr>
+                        </thead>
+                        <tbody id="preview-body"></tbody>
+                    </table>
+                </div>
+                <button id="migrate-btn" class="btn btn-primary w-fit mt-4">Migrar para Firestore</button>
+            </div>
+        </div>
+
+        <div id="result-section" class="card bg-base-100 shadow-xl mb-6 hidden">
+            <div class="card-body">
+                <h2 class="card-title">Resultado</h2>
+                <div id="result-log" class="font-mono text-sm bg-base-200 p-4 rounded-lg max-h-64 overflow-y-auto"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getFirestore, collection, addDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { firebaseConfig } from './scripts/firebase-config.js';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        let parsedGames = [];
+
+        // Auth state
+        onAuthStateChanged(auth, (user) => {
+            const status = document.getElementById('user-status');
+            const btn = document.getElementById('login-btn');
+            if (user) {
+                status.textContent = `Logado como: ${user.email}`;
+                status.classList.remove('text-base-content/60');
+                status.classList.add('text-success');
+                btn.textContent = 'Logout';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-ghost');
+            } else {
+                status.textContent = 'Não logado';
+                status.classList.add('text-base-content/60');
+                status.classList.remove('text-success');
+                btn.textContent = 'Login com Google';
+                btn.classList.add('btn-primary');
+                btn.classList.remove('btn-ghost');
+            }
+        });
+
+        // Login
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            if (auth.currentUser) {
+                await auth.signOut();
+            } else {
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (error) {
+                    alert('Erro ao fazer login: ' + error.message);
+                }
+            }
+        });
+
+        // Parse CSV
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            if (lines.length < 2) return [];
+
+            // Parse header - handle quoted fields
+            const parseRow = (row) => {
+                const result = [];
+                let current = '';
+                let inQuotes = false;
+
+                for (let i = 0; i < row.length; i++) {
+                    const char = row[i];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if ((char === ',' || char === ';' || char === '\t') && !inQuotes) {
+                        result.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                result.push(current.trim());
+                return result;
+            };
+
+            const headers = parseRow(lines[0]).map(h => h.toLowerCase().trim());
+
+            // Map headers to our field names
+            const fieldMap = {
+                'nome': 'name',
+                'name': 'name',
+                'jogadores min': 'playersMin',
+                'jogadores max': 'playersMax',
+                'min players': 'playersMin',
+                'max players': 'playersMax',
+                'idade': 'age',
+                'age': 'age',
+                'tempo': 'time',
+                'time': 'time',
+                'complexidade': 'complexity',
+                'complexity': 'complexity',
+                'coperativo': 'coop',
+                'cooperativo': 'coop',
+                'coop': 'coop',
+                'party': 'party',
+                'nota': 'rating',
+                'rating': 'rating',
+                'rank': 'rank',
+                'link': 'link',
+                'imagem': 'image',
+                'image': 'image'
+            };
+
+            const games = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = parseRow(lines[i]);
+                if (values.length === 0 || !values[0]) continue;
+
+                const game = {
+                    name: '',
+                    playersMin: '',
+                    playersMax: '',
+                    age: '',
+                    time: '',
+                    complexity: '',
+                    coop: 'Não',
+                    party: 'Não',
+                    rating: '',
+                    rank: '',
+                    link: '',
+                    image: '',
+                    borrowedBy: null,
+                    borrowedByName: null
+                };
+
+                headers.forEach((header, index) => {
+                    const field = fieldMap[header];
+                    if (field && values[index]) {
+                        game[field] = values[index];
+                    }
+                });
+
+                if (game.name) {
+                    games.push(game);
+                }
+            }
+
+            return games;
+        }
+
+        // Preview
+        document.getElementById('preview-btn').addEventListener('click', () => {
+            const csv = document.getElementById('csv-input').value;
+            parsedGames = parseCSV(csv);
+
+            if (parsedGames.length === 0) {
+                alert('Nenhum jogo encontrado no CSV. Verifique o formato.');
+                return;
+            }
+
+            document.getElementById('preview-count').textContent = `${parsedGames.length} jogos encontrados`;
+
+            // Header
+            const headerRow = document.getElementById('preview-header');
+            headerRow.innerHTML = '<th>Nome</th><th>Jogadores</th><th>Tempo</th><th>Idade</th><th>Complexidade</th>';
+
+            // Body
+            const tbody = document.getElementById('preview-body');
+            tbody.innerHTML = '';
+            parsedGames.slice(0, 10).forEach(game => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${game.name}</td>
+                    <td>${game.playersMin}-${game.playersMax}</td>
+                    <td>${game.time}</td>
+                    <td>${game.age}</td>
+                    <td>${game.complexity}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            if (parsedGames.length > 10) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="5" class="text-center text-base-content/60">... e mais ${parsedGames.length - 10} jogos</td>`;
+                tbody.appendChild(tr);
+            }
+
+            document.getElementById('preview-section').classList.remove('hidden');
+        });
+
+        // Migrate
+        document.getElementById('migrate-btn').addEventListener('click', async () => {
+            if (!auth.currentUser) {
+                alert('Faça login primeiro!');
+                return;
+            }
+
+            if (parsedGames.length === 0) {
+                alert('Nenhum jogo para migrar!');
+                return;
+            }
+
+            const resultSection = document.getElementById('result-section');
+            const resultLog = document.getElementById('result-log');
+            resultSection.classList.remove('hidden');
+            resultLog.innerHTML = '';
+
+            const log = (msg, isError = false) => {
+                const p = document.createElement('p');
+                p.textContent = msg;
+                if (isError) p.classList.add('text-error');
+                else p.classList.add('text-success');
+                resultLog.appendChild(p);
+                resultLog.scrollTop = resultLog.scrollHeight;
+            };
+
+            const migrateBtn = document.getElementById('migrate-btn');
+            migrateBtn.disabled = true;
+            migrateBtn.textContent = 'Migrando...';
+
+            try {
+                const gamesRef = collection(db, 'boardgames');
+
+                // Check existing games
+                const existing = await getDocs(gamesRef);
+                const existingNames = new Set();
+                existing.forEach(doc => {
+                    existingNames.add(doc.data().name?.toLowerCase());
+                });
+
+                let added = 0;
+                let skipped = 0;
+
+                for (const game of parsedGames) {
+                    if (existingNames.has(game.name.toLowerCase())) {
+                        log(`Pulando (já existe): ${game.name}`);
+                        skipped++;
+                        continue;
+                    }
+
+                    try {
+                        await addDoc(gamesRef, {
+                            ...game,
+                            createdAt: new Date()
+                        });
+                        log(`Adicionado: ${game.name}`);
+                        added++;
+                    } catch (error) {
+                        log(`Erro ao adicionar ${game.name}: ${error.message}`, true);
+                    }
+                }
+
+                log(`\n--- Migração concluída ---`);
+                log(`Adicionados: ${added}`);
+                log(`Pulados (já existiam): ${skipped}`);
+
+            } catch (error) {
+                log(`Erro geral: ${error.message}`, true);
+            } finally {
+                migrateBtn.disabled = false;
+                migrateBtn.textContent = 'Migrar para Firestore';
+            }
+        });
+    </script>
+</body>
+</html>
