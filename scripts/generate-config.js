@@ -1,8 +1,5 @@
-import { writeFileSync, readFileSync, existsSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const { writeFileSync, readFileSync, existsSync } = require('fs');
+const { join } = require('path');
 
 // Load .env file if it exists
 const envPath = join(__dirname, '..', '.env');

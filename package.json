@@ -1,0 +1,11 @@
+{
+  "name": "boardgames",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prestart": "node scripts/generate-config.js",
+    "prebuild": "node scripts/generate-config.js",
+    "start": "npx serve .",
+    "build": "echo 'Build complete'"
+  }
+}
