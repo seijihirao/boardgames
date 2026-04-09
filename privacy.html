@@ -1,99 +1,138 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="dark">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <base href="/boardgames/">
     <link rel="icon" type="image/png" href="/assets/icons/logo.png">
     <title>Política de Privacidade - Boardgames</title>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+      :root{--red:#FF0000;--black:#0A0A0A;--white:#FFF}
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:'Inter',sans-serif;background:var(--black);color:rgba(255,255,255,.75);min-height:100vh}
+      ::selection{background:var(--red);color:var(--white)}
+
+      .bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+      .bg-red-half{position:absolute;top:-20%;left:-10%;width:55%;height:140%;background:linear-gradient(135deg,#1a0000 0%,#330000 30%,#550000 60%,#220000 100%);transform:rotate(-15deg);z-index:1}
+      .bg-red-half::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(255,0,0,.18) 0%,rgba(180,0,0,.12) 40%,transparent 70%)}
+      .bg-dark-half{position:absolute;top:-20%;right:-15%;width:60%;height:140%;background:var(--black);transform:rotate(-15deg);z-index:2}
+      .bg-split-edge{position:absolute;top:-20%;left:42%;width:4px;height:140%;background:var(--red);transform:rotate(-15deg);z-index:3;opacity:.6;box-shadow:0 0 20px rgba(255,0,0,.4),0 0 60px rgba(255,0,0,.15)}
+      .bg-dots{position:absolute;inset:0;background:radial-gradient(circle,rgba(255,255,255,.04) 2px,transparent 2px),radial-gradient(circle,rgba(255,0,0,.03) 1.5px,transparent 1.5px);background-size:14px 14px,22px 22px;background-position:0 0,7px 11px;z-index:4}
+
+      .container{position:relative;z-index:10;max-width:720px;margin:0 auto;padding:3rem 2rem 4rem}
+
+      .back-btn{
+        display:inline-block;font-family:'Anton',sans-serif;font-size:1rem;text-transform:uppercase;letter-spacing:.1em;
+        color:var(--white);background:var(--red);border:none;padding:.5rem 1.5rem;cursor:pointer;
+        transform:skewX(-12deg);transition:transform .15s,background .15s;text-decoration:none;margin-bottom:2rem;
+      }
+      .back-btn:hover{transform:skewX(-12deg) scale(1.05);background:var(--white);color:var(--black)}
+
+      h1{font-family:'Anton',sans-serif;font-size:clamp(2rem,5vw,3.5rem);color:var(--white);transform:skewX(-6deg);margin-bottom:.5rem;line-height:1}
+      .subtitle{font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:.2em;color:var(--red);transform:skewX(-6deg);margin-bottom:2rem}
+
+      h2{font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:.1em;color:var(--white);margin-top:2rem;margin-bottom:.5rem;padding-left:.75rem;border-left:3px solid var(--red)}
+      p{line-height:1.8;margin-bottom:.75rem}
+      ul{margin-bottom:.75rem;padding-left:1.5rem}
+      li{line-height:1.8}
+      li::marker{color:var(--red)}
+      strong{color:var(--white)}
+      a{color:var(--red);transition:color .15s}
+      a:hover{color:var(--white)}
+
+      .divider{height:2px;background:linear-gradient(90deg,var(--red),transparent);margin:2rem 0;opacity:.4}
+    </style>
 </head>
-<body class="bg-base-300 min-h-screen">
-    <div class="container mx-auto px-4 py-8 max-w-3xl">
-        <div class="card bg-base-100 shadow-xl">
-            <div class="card-body prose prose-sm max-w-none">
-                <h1>Política de Privacidade</h1>
-                <p><strong>Última atualização:</strong> Fevereiro de 2025</p>
+<body>
+    <div class="bg">
+      <div class="bg-red-half"></div>
+      <div class="bg-dark-half"></div>
+      <div class="bg-split-edge"></div>
+      <div class="bg-dots"></div>
+    </div>
 
-                <h2>1. Introdução</h2>
-                <p>
-                    Esta Política de Privacidade descreve como o aplicativo Boardgames ("nós", "nosso" ou "aplicativo")
-                    coleta, usa e protege suas informações quando você utiliza nosso serviço.
-                </p>
+    <div class="container">
+        <a href="/" class="back-btn">Voltar</a>
 
-                <h2>2. Informações que Coletamos</h2>
-                <p>Quando você faz login com sua conta Google, coletamos:</p>
-                <ul>
-                    <li><strong>Nome:</strong> Para identificar quem pegou um jogo emprestado</li>
-                    <li><strong>Email:</strong> Para identificar sua conta</li>
-                    <li><strong>Foto do perfil:</strong> Para exibir no menu do usuário</li>
-                </ul>
+        <h1>Política de Privacidade</h1>
+        <div class="subtitle">Última atualização: Fevereiro de 2025</div>
 
-                <h2>3. Como Usamos suas Informações</h2>
-                <p>Suas informações são usadas exclusivamente para:</p>
-                <ul>
-                    <li>Permitir que você faça login no aplicativo</li>
-                    <li>Registrar quem pegou um jogo emprestado na planilha compartilhada</li>
-                    <li>Exibir seu nome e foto no aplicativo</li>
-                </ul>
+        <h2>1. Introdução</h2>
+        <p>
+            Esta Política de Privacidade descreve como o aplicativo Boardgames ("nós", "nosso" ou "aplicativo")
+            coleta, usa e protege suas informações quando você utiliza nosso serviço.
+        </p>
 
-                <h2>4. Acesso ao Google Sheets</h2>
-                <p>
-                    O aplicativo solicita acesso à sua conta Google para ler e escrever na planilha de jogos compartilhada.
-                    Este acesso é usado apenas para:
-                </p>
-                <ul>
-                    <li>Listar os jogos disponíveis</li>
-                    <li>Registrar empréstimos e devoluções</li>
-                </ul>
-                <p>Não acessamos outras planilhas ou dados da sua conta Google.</p>
+        <h2>2. Informações que Coletamos</h2>
+        <p>Quando você faz login com sua conta Google, coletamos:</p>
+        <ul>
+            <li><strong>Nome:</strong> Para identificar quem pegou um jogo emprestado</li>
+            <li><strong>Email:</strong> Para identificar sua conta</li>
+            <li><strong>Foto do perfil:</strong> Para exibir no menu do usuário</li>
+        </ul>
 
-                <h2>5. Armazenamento de Dados</h2>
-                <p>
-                    Suas informações de login são armazenadas localmente no seu navegador (localStorage)
-                    para manter você conectado. Nenhum dado é enviado para servidores externos além do Google.
-                </p>
+        <h2>3. Como Usamos suas Informações</h2>
+        <p>Suas informações são usadas exclusivamente para:</p>
+        <ul>
+            <li>Permitir que você faça login no aplicativo</li>
+            <li>Registrar quem pegou um jogo emprestado na planilha compartilhada</li>
+            <li>Exibir seu nome e foto no aplicativo</li>
+        </ul>
 
-                <h2>6. Compartilhamento de Dados</h2>
-                <p>
-                    Não vendemos, alugamos ou compartilhamos suas informações pessoais com terceiros.
-                    Seu nome e email podem ser visíveis para outros usuários da planilha compartilhada
-                    quando você pega um jogo emprestado.
-                </p>
+        <h2>4. Acesso ao Google Sheets</h2>
+        <p>
+            O aplicativo solicita acesso à sua conta Google para ler e escrever na planilha de jogos compartilhada.
+            Este acesso é usado apenas para:
+        </p>
+        <ul>
+            <li>Listar os jogos disponíveis</li>
+            <li>Registrar empréstimos e devoluções</li>
+        </ul>
+        <p>Não acessamos outras planilhas ou dados da sua conta Google.</p>
 
-                <h2>7. Segurança</h2>
-                <p>
-                    Utilizamos a autenticação OAuth 2.0 do Google para proteger suas credenciais.
-                    Nunca temos acesso à sua senha do Google.
-                </p>
+        <h2>5. Armazenamento de Dados</h2>
+        <p>
+            Suas informações de login são armazenadas localmente no seu navegador (localStorage)
+            para manter você conectado. Nenhum dado é enviado para servidores externos além do Google.
+        </p>
 
-                <h2>8. Seus Direitos</h2>
-                <p>Você pode a qualquer momento:</p>
-                <ul>
-                    <li>Fazer logout do aplicativo</li>
-                    <li>Revogar o acesso em <a href="https://myaccount.google.com/permissions" target="_blank" class="link link-primary">myaccount.google.com/permissions</a></li>
-                    <li>Limpar os dados do navegador</li>
-                </ul>
+        <h2>6. Compartilhamento de Dados</h2>
+        <p>
+            Não vendemos, alugamos ou compartilhamos suas informações pessoais com terceiros.
+            Seu nome e email podem ser visíveis para outros usuários da planilha compartilhada
+            quando você pega um jogo emprestado.
+        </p>
 
-                <h2>9. Contato</h2>
-                <p>
-                    Para dúvidas sobre esta política, entre em contato através do GitHub:
-                    <a href="https://github.com/seijihirao" target="_blank" class="link link-primary">github.com/seijihirao</a>
-                </p>
+        <h2>7. Segurança</h2>
+        <p>
+            Utilizamos a autenticação OAuth 2.0 do Google para proteger suas credenciais.
+            Nunca temos acesso à sua senha do Google.
+        </p>
 
-                <h2>10. Alterações</h2>
-                <p>
-                    Esta política pode ser atualizada ocasionalmente. Recomendamos revisar periodicamente.
-                </p>
+        <h2>8. Seus Direitos</h2>
+        <p>Você pode a qualquer momento:</p>
+        <ul>
+            <li>Fazer logout do aplicativo</li>
+            <li>Revogar o acesso em <a href="https://myaccount.google.com/permissions" target="_blank">myaccount.google.com/permissions</a></li>
+            <li>Limpar os dados do navegador</li>
+        </ul>
 
-                <div class="divider"></div>
+        <h2>9. Contato</h2>
+        <p>
+            Para dúvidas sobre esta política, entre em contato através do GitHub:
+            <a href="https://github.com/seijihirao" target="_blank">github.com/seijihirao</a>
+        </p>
 
-                <a href="/" class="btn btn-primary btn-sm">
-                    Voltar ao aplicativo
-                </a>
-            </div>
-        </div>
+        <h2>10. Alterações</h2>
+        <p>
+            Esta política pode ser atualizada ocasionalmente. Recomendamos revisar periodicamente.
+        </p>
+
+        <div class="divider"></div>
+
+        <a href="/" class="back-btn">Voltar ao aplicativo</a>
     </div>
 </body>
 </html>
