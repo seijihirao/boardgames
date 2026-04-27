@@ -60,7 +60,8 @@ const gameLibraryComponent = () => ({
         rating: '',
         rank: '',
         link: '',
-        image: ''
+        image: '',
+        lendable: true
     },
 
     init() {
@@ -69,6 +70,7 @@ const gameLibraryComponent = () => ({
             this.firebaseReady = true;
             if (user) {
                 this.user = {
+                    id: user.uid,
                     name: user.displayName,
                     email: user.email,
                     picture: user.photoURL
@@ -133,6 +135,8 @@ const gameLibraryComponent = () => ({
                     image: data.image || '',
                     borrowedBy: data.borrowedBy || null,
                     borrowedByName: data.borrowedByName || null,
+                    lendable: data.lendable !== false,
+                    owner: data.owner || null,
                     processing: false
                 });
             });
@@ -164,7 +168,7 @@ const gameLibraryComponent = () => ({
         // Apply category filter
         switch (this.filter) {
             case 'available':
-                filtered = filtered.filter(game => !game.borrowedBy);
+                filtered = filtered.filter(game => !game.borrowedBy && game.lendable !== false);
                 break;
             case 'mine':
                 filtered = filtered.filter(game => game.borrowedBy === this.user?.email);
@@ -299,6 +303,31 @@ const gameLibraryComponent = () => ({
         }
     },
 
+    async toggleLendable(game) {
+        if (game.processing) return;
+        const previous = game.lendable !== false;
+        const next = !previous;
+        game.processing = true;
+        game.lendable = next;
+        this.filterGames();
+
+        try {
+            const gameRef = doc(db, 'boardgames', game.id);
+            await updateDoc(gameRef, { lendable: next });
+            this.showToast(
+                next ? `"${game.name}" disponível para empréstimo` : `"${game.name}" não está disponível para empréstimo`,
+                'success'
+            );
+        } catch (error) {
+            console.error('Error toggling lendable:', error);
+            game.lendable = previous;
+            this.filterGames();
+            this.showToast('Erro ao atualizar disponibilidade', 'error');
+        } finally {
+            game.processing = false;
+        }
+    },
+
     async returnGame(game) {
         if (game.processing) return;
         game.processing = true;
@@ -342,7 +371,8 @@ const gameLibraryComponent = () => ({
             rating: '',
             rank: '',
             link: '',
-            image: ''
+            image: '',
+            lendable: true
         };
         this.addGameError = null;
     },
@@ -490,6 +520,12 @@ const gameLibraryComponent = () => ({
                 rank: this.newGame.rank,
                 link: this.newGame.link,
                 image: this.newGame.image,
+                lendable: this.newGame.lendable !== false,
+                owner: this.user ? {
+                    id: this.user.id,
+                    name: this.user.name,
+                    email: this.user.email
+                } : null,
                 borrowedBy: null,
                 borrowedByName: null,
                 createdAt: new Date()
