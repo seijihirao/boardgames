@@ -60,6 +60,7 @@
                     </div>
                     <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
                         <li class="menu-title"><span x-text="user.name"></span></li>
+                        <li x-show="isOwner"><a @click="openOwnersModal()"><i class="ri-shield-user-line"></i> Gerenciar donos</a></li>
                         <li><a @click="signOut()"><i class="ri-logout-box-line"></i> Sair</a></li>
                     </ul>
                 </div>
@@ -601,6 +602,90 @@
         </div>
         <form method="dialog" class="modal-backdrop">
             <button @click="closeAddGameModal()">close</button>
+        </form>
+    </dialog>
+
+    <!-- Manage Owners Modal -->
+    <dialog class="modal" :class="{ 'modal-open': showOwnersModal }" x-cloak>
+        <div class="modal-box max-w-lg">
+            <h3 class="font-bold text-lg mb-4">
+                <i class="ri-shield-user-line mr-2"></i>Donos da biblioteca
+            </h3>
+            <p class="text-sm text-base-content/70 mb-4">
+                Donos podem adicionar, remover jogos e gerenciar outros donos.
+            </p>
+
+            <!-- Owners list -->
+            <div class="mb-4">
+                <template x-if="loadingOwners">
+                    <div class="flex items-center gap-2 text-base-content/60 py-4">
+                        <i class="ri-loader-4-line animate-spin"></i> Carregando...
+                    </div>
+                </template>
+                <template x-if="!loadingOwners">
+                    <ul class="divide-y divide-base-200 border border-base-200 rounded-box overflow-hidden">
+                        <template x-for="owner in owners" :key="owner.email">
+                            <li class="flex items-center justify-between gap-2 px-3 py-2">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <i class="ri-user-line text-base-content/60 shrink-0"></i>
+                                    <span class="text-sm truncate" x-text="owner.email"></span>
+                                    <span class="badge badge-ghost badge-sm shrink-0"
+                                          x-show="owner.email === user?.email?.toLowerCase()">você</span>
+                                </div>
+                                <button class="btn btn-ghost btn-xs text-error"
+                                        @click="removeOwner(owner.email)"
+                                        :disabled="removingOwnerEmail === owner.email || owner.email === user?.email?.toLowerCase()"
+                                        :title="owner.email === user?.email?.toLowerCase() ? 'Você não pode remover a si mesmo' : 'Remover dono'">
+                                    <template x-if="removingOwnerEmail === owner.email">
+                                        <i class="ri-loader-4-line animate-spin"></i>
+                                    </template>
+                                    <template x-if="removingOwnerEmail !== owner.email">
+                                        <i class="ri-delete-bin-line"></i>
+                                    </template>
+                                </button>
+                            </li>
+                        </template>
+                        <template x-if="owners.length === 0">
+                            <li class="px-3 py-4 text-sm text-base-content/60 text-center">Nenhum dono cadastrado</li>
+                        </template>
+                    </ul>
+                </template>
+            </div>
+
+            <!-- Add owner -->
+            <div class="form-control">
+                <label class="label py-1">
+                    <span class="label-text">Adicionar novo dono (email)</span>
+                </label>
+                <div class="flex gap-2">
+                    <input type="email" placeholder="email@exemplo.com"
+                           class="input input-bordered input-sm flex-1"
+                           x-model="newOwnerEmail"
+                           @keyup.enter="addOwner()"
+                           :disabled="addingOwner">
+                    <button class="btn btn-primary btn-sm" @click="addOwner()"
+                            :disabled="addingOwner || !newOwnerEmail">
+                        <template x-if="addingOwner">
+                            <i class="ri-loader-4-line animate-spin"></i>
+                        </template>
+                        <template x-if="!addingOwner">
+                            <span><i class="ri-add-line"></i> Adicionar</span>
+                        </template>
+                    </button>
+                </div>
+            </div>
+
+            <div class="alert alert-error mt-3" x-show="addOwnerError">
+                <i class="ri-error-warning-line"></i>
+                <span x-text="addOwnerError"></span>
+            </div>
+
+            <div class="modal-action">
+                <button class="btn btn-ghost" @click="closeOwnersModal()">Fechar</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button @click="closeOwnersModal()">close</button>
         </form>
     </dialog>
 

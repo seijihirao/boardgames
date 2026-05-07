@@ -4,7 +4,7 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getAuth, signInWithPopup, signOut as firebaseSignOut, GoogleAuthProvider, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { getFirestore, collection, doc, getDocs, updateDoc, addDoc, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, updateDoc, addDoc, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js';
 import Alpine from 'https://unpkg.com/alpinejs@3.x.x/dist/module.esm.js';
 import { firebaseConfig } from './firebase-config.js';
@@ -42,7 +42,17 @@ const gameLibraryComponent = () => ({
         message: '',
         type: 'success'
     },
-    canEdit: true,
+    isOwner: false,
+    get canEdit() {
+        return this.isOwner;
+    },
+    showOwnersModal: false,
+    owners: [],
+    loadingOwners: false,
+    newOwnerEmail: '',
+    addingOwner: false,
+    addOwnerError: null,
+    removingOwnerEmail: null,
     showAddGameModal: false,
     ludopediaUrl: '',
     fetchingGame: false,
@@ -75,11 +85,14 @@ const gameLibraryComponent = () => ({
                     email: user.email,
                     picture: user.photoURL
                 };
+                this.checkOwnerStatus();
                 this.loadGames();
             } else {
                 this.user = null;
                 this.games = [];
                 this.filteredGames = [];
+                this.isOwner = false;
+                this.owners = [];
             }
         });
     },
@@ -101,8 +114,109 @@ const gameLibraryComponent = () => ({
             this.filteredGames = [];
             this.noAccess = false;
             this.error = null;
+            this.isOwner = false;
+            this.owners = [];
         } catch (error) {
             console.error('Sign-out error:', error);
+        }
+    },
+
+    async checkOwnerStatus() {
+        if (!this.user?.email) {
+            this.isOwner = false;
+            return;
+        }
+        try {
+            const ownerRef = doc(db, 'boardgameOwners', this.user.email.toLowerCase());
+            const snapshot = await getDoc(ownerRef);
+            this.isOwner = snapshot.exists();
+        } catch (error) {
+            console.error('Error checking owner status:', error);
+            this.isOwner = false;
+        }
+    },
+
+    async openOwnersModal() {
+        this.showOwnersModal = true;
+        this.newOwnerEmail = '';
+        this.addOwnerError = null;
+        await this.loadOwners();
+    },
+
+    closeOwnersModal() {
+        this.showOwnersModal = false;
+        this.newOwnerEmail = '';
+        this.addOwnerError = null;
+    },
+
+    async loadOwners() {
+        this.loadingOwners = true;
+        try {
+            const ownersRef = collection(db, 'boardgameOwners');
+            const snapshot = await getDocs(ownersRef);
+            this.owners = [];
+            snapshot.forEach((d) => {
+                this.owners.push({ email: d.id, name: d.data().name || '' });
+            });
+            this.owners.sort((a, b) => a.email.localeCompare(b.email));
+        } catch (error) {
+            console.error('Error loading owners:', error);
+            this.showToast('Erro ao carregar donos', 'error');
+        } finally {
+            this.loadingOwners = false;
+        }
+    },
+
+    async addOwner() {
+        const email = (this.newOwnerEmail || '').trim().toLowerCase();
+        this.addOwnerError = null;
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            this.addOwnerError = 'Email inválido';
+            return;
+        }
+        if (this.owners.some((o) => o.email === email)) {
+            this.addOwnerError = 'Esse email já é dono';
+            return;
+        }
+
+        this.addingOwner = true;
+        try {
+            await setDoc(doc(db, 'boardgameOwners', email), { addedBy: this.user.email, addedAt: new Date() });
+            this.owners.push({ email, name: '' });
+            this.owners.sort((a, b) => a.email.localeCompare(b.email));
+            this.newOwnerEmail = '';
+            this.showToast(`${email} adicionado como dono`, 'success');
+        } catch (error) {
+            console.error('Error adding owner:', error);
+            this.addOwnerError = error.code === 'permission-denied'
+                ? 'Sem permissão para adicionar donos'
+                : 'Erro ao adicionar dono';
+        } finally {
+            this.addingOwner = false;
+        }
+    },
+
+    async removeOwner(email) {
+        if (email === this.user?.email?.toLowerCase()) {
+            this.showToast('Você não pode remover a si mesmo', 'error');
+            return;
+        }
+        if (!confirm(`Remover ${email} dos donos?`)) return;
+
+        this.removingOwnerEmail = email;
+        try {
+            await deleteDoc(doc(db, 'boardgameOwners', email));
+            this.owners = this.owners.filter((o) => o.email !== email);
+            this.showToast(`${email} removido dos donos`, 'success');
+        } catch (error) {
+            console.error('Error removing owner:', error);
+            this.showToast(
+                error.code === 'permission-denied' ? 'Sem permissão para remover donos' : 'Erro ao remover dono',
+                'error'
+            );
+        } finally {
+            this.removingOwnerEmail = null;
         }
     },
 
